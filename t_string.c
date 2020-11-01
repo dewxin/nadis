@@ -10,15 +10,15 @@
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0; /* initialized to avoid any harmness warning */
 
-    // if (expire) { todo.2
-    //     if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
-    //         return;
-    //     if (milliseconds <= 0) {
-    //         addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);
-    //         return;
-    //     }
-    //     if (unit == UNIT_SECONDS) milliseconds *= 1000;
-    // }
+    if (expire) {
+        if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
+            return;
+        if (milliseconds <= 0) {
+            //addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name); todo.1
+            return;
+        }
+        if (unit == UNIT_SECONDS) milliseconds *= 1000;
+    }
 
     // if ((flags & OBJ_SET_NX && lookupKeyWrite(c->db,key) != NULL) || todo.1
     //     (flags & OBJ_SET_XX && lookupKeyWrite(c->db,key) == NULL))

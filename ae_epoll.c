@@ -40,6 +40,8 @@ static void aeApiFree(aeEventLoop *eventLoop) {
     zfree(state);
 }
 
+//todo add time event code cause activeExpireCycle in serverCron is invoked by time event
+
 static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee = {0}; /* avoid valgrind warning */

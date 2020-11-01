@@ -24,9 +24,103 @@ typedef long long mstime_t; /* millisecond time type. */
 #include "sds.h"
 #include "util.h"
 
+/* Anti-warning macro... */
+#define UNUSED(V) ((void) V)
+
 /* Error codes */
 #define C_OK                    0
 #define C_ERR                   -1
+
+/* Static server configuration */
+#define CONFIG_DEFAULT_HZ        10      /* Time interrupt calls/sec. */
+#define CONFIG_MIN_HZ            1
+#define CONFIG_MAX_HZ            500
+#define CONFIG_DEFAULT_SERVER_PORT        6379    /* TCP port */
+#define CONFIG_DEFAULT_TCP_BACKLOG       511     /* TCP listen backlog */
+#define CONFIG_DEFAULT_CLIENT_TIMEOUT       0       /* default client timeout: infinite */
+#define CONFIG_DEFAULT_DBNUM     16
+#define CONFIG_MAX_LINE    1024
+#define CRON_DBS_PER_CALL 16
+#define NET_MAX_WRITES_PER_EVENT (1024*64)
+#define PROTO_SHARED_SELECT_CMDS 10
+#define OBJ_SHARED_INTEGERS 10000
+#define OBJ_SHARED_BULKHDR_LEN 32
+#define LOG_MAX_LEN    1024 /* Default maximum length of syslog messages */
+#define AOF_REWRITE_PERC  100
+#define AOF_REWRITE_MIN_SIZE (64*1024*1024)
+#define AOF_REWRITE_ITEMS_PER_CMD 64
+#define AOF_READ_DIFF_INTERVAL_BYTES (1024*10)
+#define CONFIG_DEFAULT_SLOWLOG_LOG_SLOWER_THAN 10000
+#define CONFIG_DEFAULT_SLOWLOG_MAX_LEN 128
+#define CONFIG_DEFAULT_MAX_CLIENTS 10000
+#define CONFIG_AUTHPASS_MAX_LEN 512
+#define CONFIG_DEFAULT_SLAVE_PRIORITY 100
+#define CONFIG_DEFAULT_REPL_TIMEOUT 60
+#define CONFIG_DEFAULT_REPL_PING_SLAVE_PERIOD 10
+#define CONFIG_RUN_ID_SIZE 40
+#define RDB_EOF_MARK_SIZE 40
+#define CONFIG_DEFAULT_REPL_BACKLOG_SIZE (1024*1024)    /* 1mb */
+#define CONFIG_DEFAULT_REPL_BACKLOG_TIME_LIMIT (60*60)  /* 1 hour */
+#define CONFIG_REPL_BACKLOG_MIN_SIZE (1024*16)          /* 16k */
+#define CONFIG_BGSAVE_RETRY_DELAY 5 /* Wait a few secs before trying again. */
+#define CONFIG_DEFAULT_PID_FILE "/var/run/redis.pid"
+#define CONFIG_DEFAULT_SYSLOG_IDENT "redis"
+#define CONFIG_DEFAULT_CLUSTER_CONFIG_FILE "nodes.conf"
+#define CONFIG_DEFAULT_CLUSTER_ANNOUNCE_IP NULL         /* Auto detect. */
+#define CONFIG_DEFAULT_CLUSTER_ANNOUNCE_PORT 0          /* Use server.port */
+#define CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT 0      /* Use +10000 offset. */
+#define CONFIG_DEFAULT_DAEMONIZE 0
+#define CONFIG_DEFAULT_UNIX_SOCKET_PERM 0
+#define CONFIG_DEFAULT_TCP_KEEPALIVE 300
+#define CONFIG_DEFAULT_PROTECTED_MODE 1
+#define CONFIG_DEFAULT_LOGFILE ""
+#define CONFIG_DEFAULT_SYSLOG_ENABLED 0
+#define CONFIG_DEFAULT_STOP_WRITES_ON_BGSAVE_ERROR 1
+#define CONFIG_DEFAULT_RDB_COMPRESSION 1
+#define CONFIG_DEFAULT_RDB_CHECKSUM 1
+#define CONFIG_DEFAULT_RDB_FILENAME "dump.rdb"
+#define CONFIG_DEFAULT_REPL_DISKLESS_SYNC 0
+#define CONFIG_DEFAULT_REPL_DISKLESS_SYNC_DELAY 5
+#define CONFIG_DEFAULT_SLAVE_SERVE_STALE_DATA 1
+#define CONFIG_DEFAULT_SLAVE_READ_ONLY 1
+#define CONFIG_DEFAULT_SLAVE_ANNOUNCE_IP NULL
+#define CONFIG_DEFAULT_SLAVE_ANNOUNCE_PORT 0
+#define CONFIG_DEFAULT_REPL_DISABLE_TCP_NODELAY 0
+#define CONFIG_DEFAULT_MAXMEMORY 0
+#define CONFIG_DEFAULT_MAXMEMORY_SAMPLES 5
+#define CONFIG_DEFAULT_LFU_LOG_FACTOR 10
+#define CONFIG_DEFAULT_LFU_DECAY_TIME 1
+#define CONFIG_DEFAULT_AOF_FILENAME "appendonly.aof"
+#define CONFIG_DEFAULT_AOF_NO_FSYNC_ON_REWRITE 0
+#define CONFIG_DEFAULT_AOF_LOAD_TRUNCATED 1
+#define CONFIG_DEFAULT_AOF_USE_RDB_PREAMBLE 0
+#define CONFIG_DEFAULT_ACTIVE_REHASHING 1
+#define CONFIG_DEFAULT_AOF_REWRITE_INCREMENTAL_FSYNC 1
+#define CONFIG_DEFAULT_MIN_SLAVES_TO_WRITE 0
+#define CONFIG_DEFAULT_MIN_SLAVES_MAX_LAG 10
+#define NET_IP_STR_LEN 46 /* INET6_ADDRSTRLEN is 46, but we need to be sure */
+#define NET_PEER_ID_LEN (NET_IP_STR_LEN+32) /* Must be enough for ip:port */
+#define CONFIG_BINDADDR_MAX 16
+#define CONFIG_MIN_RESERVED_FDS 32
+#define CONFIG_DEFAULT_LATENCY_MONITOR_THRESHOLD 0
+#define CONFIG_DEFAULT_SLAVE_LAZY_FLUSH 0
+#define CONFIG_DEFAULT_LAZYFREE_LAZY_EVICTION 0
+#define CONFIG_DEFAULT_LAZYFREE_LAZY_EXPIRE 0
+#define CONFIG_DEFAULT_LAZYFREE_LAZY_SERVER_DEL 0
+#define CONFIG_DEFAULT_ALWAYS_SHOW_LOGO 0
+#define CONFIG_DEFAULT_ACTIVE_DEFRAG 0
+#define CONFIG_DEFAULT_DEFRAG_THRESHOLD_LOWER 10 /* don't defrag when fragmentation is below 10% */
+#define CONFIG_DEFAULT_DEFRAG_THRESHOLD_UPPER 100 /* maximum defrag force at 100% fragmentation */
+#define CONFIG_DEFAULT_DEFRAG_IGNORE_BYTES (100<<20) /* don't defrag if frag overhead is below 100mb */
+#define CONFIG_DEFAULT_DEFRAG_CYCLE_MIN 25 /* 25% CPU min (at lower threshold) */
+#define CONFIG_DEFAULT_DEFRAG_CYCLE_MAX 75 /* 75% CPU max (at upper threshold) */
+#define CONFIG_DEFAULT_PROTO_MAX_BULK_LEN (512ll*1024*1024) /* Bulk request max size */
+
+#define ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP 20 /* Loopkups per loop. */
+#define ACTIVE_EXPIRE_CYCLE_FAST_DURATION 1000 /* Microseconds */
+#define ACTIVE_EXPIRE_CYCLE_SLOW_TIME_PERC 25 /* CPU max % for keys collection */
+#define ACTIVE_EXPIRE_CYCLE_SLOW 0
+#define ACTIVE_EXPIRE_CYCLE_FAST 1
 
 /* Units */
 #define UNIT_SECONDS 0
@@ -256,6 +350,10 @@ typedef struct nadisServer {
     int port;                       /* Tcp listening port */
     int tcp_backlog;
     long long dirty;
+    int cronloops;              /* Number of times the cron function run */
+    int hz; 
+    int active_expire_enabled;      /* Can be disabled for testing purposes. */
+    int stat_expired_time_cap_reached_count;
     int ipfd[CONFIG_BINDADDR_MAX];  /* TCP socket file descriptors */
     int ipfd_count;                 /* Used slots in ipfd[] */
     char *bindaddr[CONFIG_BINDADDR_MAX]; /* Addresses we should bind to */
@@ -270,8 +368,11 @@ typedef struct nadisServer {
     int notify_keyspace_events; /* Events to propagate via Pub/Sub. This is an
                                    xor of NOTIFY_... flags. */
 
-    /* Limits */
+    /* stats */
+    double stat_expired_stale_perc; /* Percentage of keys probably expired */
+
     unsigned int maxclients;            /* Max number of simultaneous clients */
+    /* Limits */
     uint64_t next_client_id;        
     long long proto_max_bulk_len;
 
@@ -317,7 +418,7 @@ robj *lookupKeyWrite(redisDb *db, robj *key);
 void _serverAssert(const char *estr, const char *file, int line);
 void _serverAssertWithInfo(const client *c, const robj *o, const char *estr, const char *file, int line);
 
-
+int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData);
 void addReplyErrorLength(client *c, const char *s, size_t len);
 void addReplyError(client *c, const char *err);
 void addReplyLongLong(client *c, long long ll);
@@ -334,6 +435,7 @@ void decrRefCount(robj *o);
 void incrRefCount(robj *o);
 
 void expireCommand(client *c);
+void activeExpireCycle(int type);
 int expireIfNeeded(redisDb *db, robj *key);
 void setExpire(client *c, redisDb *db, robj *key, long long when);
 long long getExpire(redisDb *db, robj *key);
