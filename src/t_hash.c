@@ -507,6 +507,7 @@ void hashTypeConvert(robj *o, int enc) {
     }
 }
 
+
 /*-----------------------------------------------------------------------------
  * Hash type commands
  *----------------------------------------------------------------------------*/
@@ -822,4 +823,62 @@ void hscanCommand(client *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptyscan)) == NULL ||
         checkType(c,o,OBJ_HASH)) return;
     scanGenericCommand(c,o,cursor);
+}
+
+
+void hrandmemberCommand(client *c) {
+    long l;
+
+    if (c->argc == 3) {
+        if (getLongFromObjectOrReply(c,c->argv[2],&l,NULL) != C_OK) return;
+        hrandmemberWithCountCommand(c, l);
+        return;
+    } else if (c->argc > 3) {
+        addReply(c,shared.syntaxerr);
+        return;
+    }
+
+    hrandmemberWithCountCommand(c, 1);
+}
+
+void hrandmemberWithCountCommand(client *c, long l) {
+    unsigned long entryCount, hashSize;
+    int uniq = 1;
+    hashTypeIterator *hi;
+    robj *hash;
+    double randomDouble;
+    double threshold;
+    unsigned long index = 0;
+
+    if ((hash = lookupKeyReadOrReply(c,c->argv[1],shared.emptymultibulk))
+        == NULL || checkType(c,hash,OBJ_HASH)) return;
+
+    if(l >= 0) {
+        entryCount = (unsigned long) l;
+    } else {
+        entryCount = -l;
+        uniq = 0;    //todo for now , just ignore uniq==0
+    }
+
+
+    hashSize = hashTypeLength(hash);
+    if(entryCount > hashSize)
+        entryCount = hashSize;
+    addReplyMultiBulkLen(c, entryCount * 2);
+
+    hi = hashTypeInitIterator(hash);
+
+    //todo , improve dict encoding efficiency
+    while (hashTypeNext(hi) != C_ERR && entryCount != 0) {
+        randomDouble = ((double)rand()) / RAND_MAX;
+        threshold = ((double)entryCount) / (hashSize - index);
+        if(randomDouble < threshold){
+            entryCount--;
+            addHashIteratorCursorToReply(c, hi, OBJ_HASH_KEY);
+            addHashIteratorCursorToReply(c, hi, OBJ_HASH_VALUE);
+        }
+    
+        index ++;
+    }
+
 }

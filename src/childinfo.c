@@ -69,7 +69,7 @@ void sendChildInfo(int ptype) {
     }
 }
 
-/* Receive COW data from parent. */
+/* Receive COW data from child. */
 void receiveChildInfo(void) {
     if (server.child_info_pipe[0] == -1) return;
     ssize_t wlen = sizeof(server.child_info_data);

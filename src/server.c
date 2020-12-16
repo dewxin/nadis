@@ -212,6 +212,7 @@ struct redisCommand redisCommandTable[] = {
     {"hvals",hvalsCommand,2,"rS",0,NULL,1,1,1,0,0},
     {"hgetall",hgetallCommand,2,"r",0,NULL,1,1,1,0,0},
     {"hexists",hexistsCommand,3,"rF",0,NULL,1,1,1,0,0},
+    {"hrandmember",hrandmemberCommand,-2,"rR",0,NULL,1,1,1,0,0},
     {"hscan",hscanCommand,-3,"rR",0,NULL,1,1,1,0,0},
     {"incrby",incrbyCommand,3,"wmF",0,NULL,1,1,1,0,0},
     {"decrby",decrbyCommand,3,"wmF",0,NULL,1,1,1,0,0},
